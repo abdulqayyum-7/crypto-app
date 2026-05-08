@@ -1,97 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-class ReceiveScreen extends StatefulWidget {
+class ReceiveScreen extends StatelessWidget {
   const ReceiveScreen({super.key});
 
-  @override
-  State<ReceiveScreen> createState() =>
-      _ReceiveScreenState();
-}
-
-class _ReceiveScreenState
-    extends State<ReceiveScreen> {
-
-  final TextEditingController amountController =
-  TextEditingController();
-
   final String walletAddress =
-      "btc_7HGS82JSK92KSLA91J";
-
-  bool loading = false;
-
-  Future<void> receiveCoin() async {
-
-    String amount =
-    amountController.text.trim();
-
-    if (amount.isEmpty) {
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content:
-          Text("Enter amount"),
-        ),
-      );
-
-      return;
-    }
-
-    setState(() {
-      loading = true;
-    });
-
-    try {
-
-      final user =
-          FirebaseAuth.instance.currentUser;
-
-      await FirebaseFirestore.instance
-          .collection("transactions")
-          .add({
-
-        "userId": user!.uid,
-
-        "type": "receive",
-
-        "coinName": "BTC",
-
-        "amount": amount,
-
-        "address": walletAddress,
-
-        "timestamp":
-        FieldValue.serverTimestamp(),
-      });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content:
-          Text("BTC received successfully"),
-        ),
-      );
-
-      amountController.clear();
-
-    } catch (e) {
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-          Text(e.toString()),
-        ),
-      );
-    }
-
-    setState(() {
-      loading = false;
-    });
-  }
+      "0xA1B2C3D4E5F6G7H8I9J0";
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +39,7 @@ class _ReceiveScreenState
 
         title: const Text(
 
-          "Receive BTC",
+          "Receive",
 
           style: TextStyle(
             color: Colors.black,
@@ -161,12 +76,14 @@ class _ReceiveScreenState
                 boxShadow: [
 
                   BoxShadow(
+
                     color:
                     Colors.black.withOpacity(
                       0.05,
                     ),
 
                     blurRadius: 14,
+
                     offset:
                     const Offset(0, 6),
                   ),
@@ -182,7 +99,9 @@ class _ReceiveScreenState
                     "Scan QR Code",
 
                     style: TextStyle(
+
                       fontSize: 22,
+
                       fontWeight:
                       FontWeight.bold,
                     ),
@@ -197,7 +116,8 @@ class _ReceiveScreenState
 
                     decoration: BoxDecoration(
 
-                      color: Colors.white,
+                      color:
+                      Colors.white,
 
                       borderRadius:
                       BorderRadius.circular(
@@ -217,7 +137,7 @@ class _ReceiveScreenState
                       version:
                       QrVersions.auto,
 
-                      size: 220,
+                      size: 230,
                     ),
                   ),
 
@@ -251,7 +171,7 @@ class _ReceiveScreenState
                       children: const [
 
                         Icon(
-                          Icons.currency_bitcoin,
+                          Icons.account_balance_wallet,
                           color:
                           Color(0xFF4FC3F7),
                         ),
@@ -260,7 +180,7 @@ class _ReceiveScreenState
 
                         Text(
 
-                          "Bitcoin Wallet (BTC)",
+                          "Crypto Wallet Address",
 
                           style: TextStyle(
                             fontSize: 16,
@@ -273,25 +193,6 @@ class _ReceiveScreenState
                   ),
 
                   const SizedBox(height: 20),
-
-                  const Align(
-
-                    alignment:
-                    Alignment.centerLeft,
-
-                    child: Text(
-
-                      "Wallet Address",
-
-                      style: TextStyle(
-                        fontWeight:
-                        FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
 
                   Container(
 
@@ -318,7 +219,9 @@ class _ReceiveScreenState
                       walletAddress,
 
                       style: const TextStyle(
+
                         fontSize: 15,
+
                         fontWeight:
                         FontWeight.w500,
                       ),
@@ -327,107 +230,144 @@ class _ReceiveScreenState
 
                   const SizedBox(height: 24),
 
-                  TextField(
+                  Row(
 
-                    controller:
-                    amountController,
+                    children: [
 
-                    keyboardType:
-                    TextInputType.number,
+                      Expanded(
 
-                    decoration: InputDecoration(
+                        child: ElevatedButton.icon(
 
-                      hintText:
-                      "Enter BTC amount",
+                          onPressed: () async {
 
-                      filled: true,
+                            await Clipboard.setData(
+                              ClipboardData(
+                                text: walletAddress,
+                              ),
+                            );
 
-                      fillColor:
-                      const Color(
-                        0xFFF5F7FB,
-                      ),
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(
 
-                      prefixIcon:
-                      const Icon(
-                        Icons.account_balance_wallet,
-                      ),
+                              const SnackBar(
+                                content:
+                                Text(
+                                  "Address copied",
+                                ),
+                              ),
+                            );
+                          },
 
-                      border:
-                      OutlineInputBorder(
+                          style:
+                          ElevatedButton.styleFrom(
 
-                        borderRadius:
-                        BorderRadius.circular(
-                          16,
-                        ),
+                            backgroundColor:
+                            const Color(
+                              0xFF4FC3F7,
+                            ),
 
-                        borderSide:
-                        BorderSide.none,
-                      ),
-                    ),
-                  ),
+                            padding:
+                            const EdgeInsets.symmetric(
+                              vertical: 16,
+                            ),
 
-                  const SizedBox(height: 28),
+                            shape:
+                            RoundedRectangleBorder(
 
-                  SizedBox(
+                              borderRadius:
+                              BorderRadius.circular(
+                                16,
+                              ),
+                            ),
+                          ),
 
-                    width: double.infinity,
-                    height: 55,
+                          icon: const Icon(
+                            Icons.copy,
+                            color: Colors.white,
+                          ),
 
-                    child: ElevatedButton(
+                          label: const Text(
 
-                      onPressed:
-                      loading
-                          ? null
-                          : receiveCoin,
+                            "Copy",
 
-                      style:
-                      ElevatedButton.styleFrom(
+                            style: TextStyle(
 
-                        backgroundColor:
-                        const Color(
-                          0xFF4FC3F7,
-                        ),
+                              color:
+                              Colors.white,
 
-                        shape:
-                        RoundedRectangleBorder(
-
-                          borderRadius:
-                          BorderRadius.circular(
-                            16,
+                              fontWeight:
+                              FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
 
-                      child:
-                      loading
-                          ? const SizedBox(
+                      const SizedBox(width: 14),
 
-                        height: 24,
-                        width: 24,
+                      Expanded(
 
-                        child:
-                        CircularProgressIndicator(
-                          color:
-                          Colors.white,
-                          strokeWidth: 3,
-                        ),
-                      )
-                          : const Text(
+                        child: ElevatedButton.icon(
 
-                        "Receive BTC",
+                          onPressed: () {
 
-                        style: TextStyle(
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(
 
-                          color:
-                          Colors.white,
+                              const SnackBar(
+                                content:
+                                Text(
+                                  "Share feature coming soon",
+                                ),
+                              ),
+                            );
+                          },
 
-                          fontSize: 16,
+                          style:
+                          ElevatedButton.styleFrom(
 
-                          fontWeight:
-                          FontWeight.bold,
+                            backgroundColor:
+                            const Color(
+                              0xFF7C4DFF,
+                            ),
+
+                            padding:
+                            const EdgeInsets.symmetric(
+                              vertical: 16,
+                            ),
+
+                            shape:
+                            RoundedRectangleBorder(
+
+                              borderRadius:
+                              BorderRadius.circular(
+                                16,
+                              ),
+                            ),
+                          ),
+
+                          icon: const Icon(
+                            Icons.share,
+                            color: Colors.white,
+                          ),
+
+                          label: const Text(
+
+                            "Share",
+
+                            style: TextStyle(
+
+                              color:
+                              Colors.white,
+
+                              fontWeight:
+                              FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
