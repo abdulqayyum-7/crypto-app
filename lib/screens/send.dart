@@ -1,151 +1,210 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../data/dummy_data.dart';
-import '../models/transaction.dart';
 
 class SendScreen extends StatefulWidget {
   const SendScreen({super.key});
 
   @override
-  State<SendScreen> createState() => _SendScreenState();
+  State<SendScreen> createState() =>
+      _SendScreenState();
 }
 
-class _SendScreenState extends State<SendScreen> {
-  final TextEditingController addressController = TextEditingController();
-  final TextEditingController amountController = TextEditingController();
+class _SendScreenState
+    extends State<SendScreen> {
+
+  final TextEditingController
+  amountController =
+  TextEditingController();
+
+  final TextEditingController
+  addressController =
+  TextEditingController();
 
   String selectedCoin = "BTC";
 
-  String getCurrentDate() {
-    final now = DateTime.now();
-    final months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec"
-    ];
-    return "${now.day} ${months[now.month - 1]} ${now.year}";
-  }
+  bool loading = false;
 
-  String getCurrentTime() {
-    final now = DateTime.now();
-    int hour = now.hour;
-    String period = hour >= 12 ? "PM" : "AM";
-    hour = hour % 12;
-    if (hour == 0) hour = 12;
-    final minute = now.minute.toString().padLeft(2, '0');
-    return "$hour:$minute $period";
-  }
+  Future<void> sendCoin() async {
 
-  bool isValidAddress(String address) {
-    return address.length >= 8;
-  }
+    String amountText =
+    amountController.text.trim();
 
-  void confirmSend() {
-    final address = addressController.text.trim();
-    final amountText = amountController.text.trim();
+    String address =
+    addressController.text.trim();
 
-    if (address.isEmpty || amountText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
-      return;
-    }
+    if (amountText.isEmpty ||
+        address.isEmpty) {
 
-    if (!isValidAddress(address)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter a valid wallet address")),
-      );
-      return;
-    }
-
-    final amount = double.tryParse(amountText);
-
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter a valid amount")),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Confirm Transaction"),
-        content: Text(
-          "Are you sure you want to send $amount $selectedCoin to:\n\n$address ?",
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content:
+          Text("Fill all fields"),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+      );
+
+      return;
+    }
+
+    double amount =
+        double.tryParse(amountText) ?? 0;
+
+    if (amount <= 0) {
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content:
+          Text("Invalid amount"),
+        ),
+      );
+
+      return;
+    }
+
+    setState(() {
+      loading = true;
+    });
+
+    try {
+
+      final user =
+          FirebaseAuth.instance.currentUser;
+
+      final docRef = FirebaseFirestore
+          .instance
+          .collection('users')
+          .doc(user!.uid);
+
+      final snapshot =
+      await docRef.get();
+
+      final data =
+          snapshot.data() ?? {};
+
+      String field =
+      selectedCoin.toLowerCase();
+
+      double currentBalance =
+      (data[field] ?? 0).toDouble();
+
+      if (amount > currentBalance) {
+
+        setState(() {
+          loading = false;
+        });
+
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Insufficient balance",
+            ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
+        );
 
-              transactions.add(
-                TransactionModel(
-                  type: "send",
-                  amount: amount,
-                  address: address,
-                  date: getCurrentDate(),
-                  time: getCurrentTime(),
-                  status: "Completed",
-                  coinName: selectedCoin,
-                ),
-              );
+        return;
+      }
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Crypto sent successfully")),
-              );
+      await docRef.update({
+        field:
+        currentBalance - amount,
+      });
 
-              Navigator.pop(context);
-            },
-            child: const Text("Confirm"),
-          ),
-        ],
-      ),
-    );
+      await FirebaseFirestore.instance
+          .collection('transactions')
+          .add({
+
+        'uid': user.uid,
+
+        'type': 'send',
+
+        'coinName': selectedCoin,
+
+        'amount': amount,
+
+        'address': address,
+
+        'timestamp':
+        Timestamp.now(),
+      });
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content:
+          Text("Coin Sent"),
+        ),
+      );
+
+    } catch (e) {
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content:
+          Text(e.toString()),
+        ),
+      );
+    }
+
+    setState(() {
+      loading = false;
+    });
   }
 
   InputDecoration fieldDecoration(
       String hint,
       IconData icon,
-      BuildContext context,
       ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return InputDecoration(
+
       hintText: hint,
-      hintStyle: TextStyle(
-        color: isDark ? Colors.white54 : Colors.black45,
+
+      prefixIcon: Icon(
+        icon,
+        color:
+        const Color(0xFF4FC3F7),
       ),
-      prefixIcon: Icon(icon, color: const Color(0xFF4FC3F7)),
+
       filled: true,
-      fillColor: isDark ? const Color(0xFF161B22) : Colors.white,
+
+      fillColor: Colors.white,
+
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius:
+        BorderRadius.circular(16),
+
         borderSide: BorderSide.none,
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(
-          color: isDark ? Colors.white10 : Colors.black12,
+
+      enabledBorder:
+      OutlineInputBorder(
+        borderRadius:
+        BorderRadius.circular(16),
+
+        borderSide:
+        const BorderSide(
+          color: Colors.black12,
         ),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(
-          color: Color(0xFF4FC3F7),
-          width: 1.4,
+
+      focusedBorder:
+      OutlineInputBorder(
+        borderRadius:
+        BorderRadius.circular(16),
+
+        borderSide:
+        const BorderSide(
+          color:
+          Color(0xFF4FC3F7),
+          width: 1.5,
         ),
       ),
     );
@@ -153,135 +212,212 @@ class _SendScreenState extends State<SendScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryText = isDark ? Colors.white : Colors.black;
-    final secondaryText = isDark ? Colors.white60 : Colors.black54;
-    final cardColor = isDark ? const Color(0xFF161B22) : Colors.white;
 
     return Scaffold(
+
+      backgroundColor:
+      const Color(0xFFF5F7FB),
+
       appBar: AppBar(
+
+        backgroundColor:
+        Colors.transparent,
+
+        elevation: 0,
+
         centerTitle: true,
+
         title: const Text(
-          "Send Crypto",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          "Send Coin",
+
+          style: TextStyle(
+            fontWeight:
+            FontWeight.bold,
+          ),
         ),
       ),
+
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+
+        padding:
+        const EdgeInsets.all(18),
+
         child: Column(
           children: [
+
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
+
+              padding:
+              const EdgeInsets.all(22),
+
               decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: isDark ? Colors.white10 : Colors.black12,
+
+                gradient:
+                const LinearGradient(
+                  colors: [
+                    Color(0xFF4FC3F7),
+                    Color(0xFF7C4DFF),
+                  ],
                 ),
+
+                borderRadius:
+                BorderRadius.circular(24),
               ),
+
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
                   const Icon(
-                    Icons.send_rounded,
-                    color: Color(0xFF4FC3F7),
-                    size: 34,
+                    Icons.send,
+                    color: Colors.white,
+                    size: 52,
                   ),
+
                   const SizedBox(height: 12),
-                  Text(
-                    "Send Funds",
+
+                  const Text(
+                    "Send Cryptocurrency",
+
                     style: TextStyle(
-                      color: primaryText,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight:
+                      FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 6),
-                  Text(
-                    "Enter wallet address, choose coin, and send securely.",
+
+                  const Text(
+                    "Transfer crypto securely",
+
                     style: TextStyle(
-                      color: secondaryText,
-                      fontSize: 14,
+                      color:
+                      Colors.white70,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
 
-            DropdownButtonFormField<String>(
+            const SizedBox(height: 26),
+
+            DropdownButtonFormField(
               value: selectedCoin,
-              dropdownColor: cardColor,
-              style: TextStyle(color: primaryText),
-              decoration: fieldDecoration(
+
+              decoration:
+              fieldDecoration(
                 "Select Coin",
                 Icons.currency_bitcoin,
-                context,
               ),
-              items: coins
-                  .map(
-                    (coin) => DropdownMenuItem(
-                  value: coin.symbol,
+
+              items: const [
+
+                DropdownMenuItem(
+                  value: "BTC",
                   child: Text(
-                    "${coin.symbol} - ${coin.name}",
-                    style: TextStyle(color: primaryText),
+                    "Bitcoin (BTC)",
                   ),
                 ),
-              )
-                  .toList(),
+
+                DropdownMenuItem(
+                  value: "ETH",
+                  child: Text(
+                    "Ethereum (ETH)",
+                  ),
+                ),
+
+                DropdownMenuItem(
+                  value: "SOL",
+                  child: Text(
+                    "Solana (SOL)",
+                  ),
+                ),
+              ],
+
               onChanged: (value) {
+
                 setState(() {
-                  selectedCoin = value!;
+                  selectedCoin =
+                  value!;
                 });
               },
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             TextField(
-              controller: addressController,
-              style: TextStyle(color: primaryText),
-              decoration: fieldDecoration(
-                "Recipient Wallet Address",
-                Icons.account_balance_wallet_outlined,
-                context,
+              controller:
+              amountController,
+
+              keyboardType:
+              TextInputType.number,
+
+              decoration:
+              fieldDecoration(
+                "Amount",
+                Icons.account_balance_wallet,
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(color: primaryText),
-              decoration: fieldDecoration(
-                "Enter Amount",
-                Icons.payments_outlined,
-                context,
+              controller:
+              addressController,
+
+              decoration:
+              fieldDecoration(
+                "Wallet Address",
+                Icons.wallet,
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 30),
 
             SizedBox(
+
               width: double.infinity,
-              height: 54,
-              child: ElevatedButton.icon(
-                onPressed: confirmSend,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4FC3F7),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+              height: 56,
+
+              child: ElevatedButton(
+
+                style:
+                ElevatedButton.styleFrom(
+
+                  backgroundColor:
+                  const Color(
+                    0xFF4FC3F7,
+                  ),
+
+                  shape:
+                  RoundedRectangleBorder(
+                    borderRadius:
+                    BorderRadius.circular(
+                      16,
+                    ),
                   ),
                 ),
-                icon: const Icon(Icons.send),
-                label: const Text(
-                  "Send Now",
+
+                onPressed:
+                loading
+                    ? null
+                    : sendCoin,
+
+                child: loading
+                    ? const CircularProgressIndicator(
+                  color: Colors.white,
+                )
+                    : const Text(
+
+                  "Send",
+
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    color: Colors.white,
+                    fontWeight:
+                    FontWeight.bold,
+
+                    fontSize: 17,
                   ),
                 ),
               ),
