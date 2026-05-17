@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class FirebaseService {
+
   final FirebaseFirestore firestore =
       FirebaseFirestore.instance;
 
@@ -10,101 +11,86 @@ class FirebaseService {
 
   String get uid => auth.currentUser!.uid;
 
-  // CREATE USER DATA
-  Future<void> createUserData({
-    required String name,
-    required String email,
-  }) async {
-    await firestore
-        .collection("users")
-        .doc(uid)
-        .set({
-      "name": name,
-      "email": email,
-
-      // user starts with 0 coins
-      "BTC": 0.0,
-      "ETH": 0.0,
-      "BNB": 0.0,
-      "USDT": 0.0,
-
-      "createdAt":
-      FieldValue.serverTimestamp(),
-    });
-  }
-
-  // GET USER DATA
-  Stream<DocumentSnapshot> getUserData() {
-    return firestore
-        .collection("users")
-        .doc(uid)
-        .snapshots();
-  }
-
-  // ADD TRANSACTION
   Future<void> addTransaction({
     required String type,
-    required String coinName,
+    required String coin,
     required double amount,
-    required String address,
-    required double coinPrice,
   }) async {
+
     await firestore
         .collection("transactions")
         .add({
+
       "uid": uid,
       "type": type,
-      "coinName": coinName,
+      "coin": coin,
       "amount": amount,
-      "address": address,
-      "coinPrice": coinPrice,
-      "totalValue":
-      amount * coinPrice,
-      "createdAt":
-      FieldValue.serverTimestamp(),
-    });
-
-    // update balance
-    final userRef = firestore
-        .collection("users")
-        .doc(uid);
-
-    final userDoc =
-    await userRef.get();
-
-    final data =
-    userDoc.data()
-    as Map<String, dynamic>?;
-
-    double currentBalance =
-    (data?[coinName] ?? 0)
-        .toDouble();
-
-    if (type == "receive") {
-      currentBalance += amount;
-    } else {
-      currentBalance -= amount;
-
-      if (currentBalance < 0) {
-        currentBalance = 0;
-      }
-    }
-
-    await userRef.update({
-      coinName: currentBalance,
+      "time": Timestamp.now(),
     });
   }
 
-  // GET TRANSACTIONS
   Stream<QuerySnapshot> getTransactions() {
+
     return firestore
         .collection("transactions")
-        .where("uid",
-        isEqualTo: uid)
-        .orderBy(
-      "createdAt",
-      descending: true,
-    )
+        .where("uid", isEqualTo: uid)
+        .orderBy("time", descending: true)
         .snapshots();
+  }
+
+  Future<Map<String, double>> getPortfolio() async {
+
+    final snapshot = await firestore
+        .collection("transactions")
+        .where("uid", isEqualTo: uid)
+        .get();
+
+    double btc = 0;
+    double eth = 0;
+    double usdt = 0;
+
+    for (var doc in snapshot.docs) {
+
+      final data = doc.data();
+
+      String coin = data["coin"];
+      String type = data["type"];
+
+      double amount =
+      (data["amount"] as num).toDouble();
+
+      if (coin == "BTC") {
+
+        if (type == "receive") {
+          btc += amount;
+        } else {
+          btc -= amount;
+        }
+      }
+
+      if (coin == "ETH") {
+
+        if (type == "receive") {
+          eth += amount;
+        } else {
+          eth -= amount;
+        }
+      }
+
+      if (coin == "USDT") {
+
+        if (type == "receive") {
+          usdt += amount;
+        } else {
+          usdt -= amount;
+        }
+      }
+    }
+
+    return {
+      "BTC": btc,
+      "ETH": eth,
+      "USDT": usdt,
+    };
   }
 }

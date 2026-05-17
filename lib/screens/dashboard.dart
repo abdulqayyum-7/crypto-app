@@ -1,12 +1,13 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-import 'receive.dart';
+import '../models/coin.dart';
+import '../services/coin_api_service.dart';
+import 'prediction_screen.dart';
 import 'send.dart';
+import 'receive.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,377 +20,644 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState
     extends State<DashboardScreen> {
 
-  Map<String, dynamic> prices = {};
+  final CoinApiService apiService =
+  CoinApiService();
 
-  bool loading = true;
+  bool isLoading = true;
+
+  List<Coin> coins = [];
+
+  double totalPortfolio = 0;
+
+  double totalInvestment = 0;
+
+  double totalProfitLoss = 0;
+
+  List<FlSpot> portfolioSpots = [];
 
   @override
   void initState() {
     super.initState();
-    fetchPrices();
+    loadData();
   }
 
-  Future<void> fetchPrices() async {
-
-    try {
-
-      final response = await http.get(
-        Uri.parse(
-          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd',
-        ),
-      );
-
-      if (response.statusCode == 200) {
-
-        setState(() {
-
-          prices = jsonDecode(response.body);
-
-          loading = false;
-        });
-      }
-
-    } catch (e) {
-
-      setState(() {
-        loading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Future<void> loadData() async {
 
     final user =
         FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
+    if (user == null) return;
 
-      backgroundColor:
-      Theme.of(context)
-          .scaffoldBackgroundColor,
+    final prices =
+    await apiService.fetchCoins();
 
-      appBar: AppBar(
-        elevation: 0,
-        centerTitle: true,
+    final snapshot =
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .collection("portfolio")
+        .orderBy("timestamp")
+        .get();
 
-        title: const Text(
-          "Crypto Wallet",
+    Map<String, double> amounts = {
+      "BTC": 0,
+      "ETH": 0,
+      "SOL": 0,
+      "BNB": 0,
+    };
 
-          style: TextStyle(
-            fontWeight:
-            FontWeight.bold,
-          ),
+    double invested = 0;
+
+    List<FlSpot> spots = [];
+
+    int index = 0;
+
+    double runningValue = 0;
+
+    for (var doc in snapshot.docs) {
+
+      final data = doc.data();
+
+      String coin =
+      data["coin"];
+
+      double amount =
+      (data["amount"] as num)
+          .toDouble();
+
+      double price =
+      (data["price"] as num)
+          .toDouble();
+
+      String type =
+      data["type"];
+
+      if (type == "receive") {
+
+        amounts[coin] =
+            (amounts[coin] ?? 0) +
+                amount;
+
+        invested +=
+            amount * price;
+
+      } else {
+
+        amounts[coin] =
+            (amounts[coin] ?? 0) -
+                amount;
+
+        invested -=
+            amount * price;
+      }
+
+      runningValue = 0;
+
+      amounts.forEach((key, value) {
+
+        if (prices[key] != null) {
+
+          runningValue +=
+              value * prices[key];
+        }
+      });
+
+      spots.add(
+        FlSpot(
+          index.toDouble(),
+          runningValue,
         ),
+      );
+
+      index++;
+    }
+
+    if (spots.isEmpty) {
+
+      spots = [
+
+        const FlSpot(0, 0),
+        const FlSpot(1, 0),
+        const FlSpot(2, 0),
+        const FlSpot(3, 0),
+        const FlSpot(4, 0),
+        const FlSpot(5, 0),
+      ];
+    }
+
+    List<Coin> loaded = [
+
+      Coin(
+        name: "Bitcoin",
+        symbol: "BTC",
+        amount: amounts["BTC"]!,
+        price: prices["BTC"] ?? 0,
       ),
 
-      body: loading
-          ? const Center(
-        child:
-        CircularProgressIndicator(),
-      )
-          : StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user!.uid)
-            .snapshots(),
+      Coin(
+        name: "Ethereum",
+        symbol: "ETH",
+        amount: amounts["ETH"]!,
+        price: prices["ETH"] ?? 0,
+      ),
 
-        builder: (context, snapshot) {
+      Coin(
+        name: "Solana",
+        symbol: "SOL",
+        amount: amounts["SOL"]!,
+        price: prices["SOL"] ?? 0,
+      ),
 
-          Map<String, dynamic> userData =
-          {};
+      Coin(
+        name: "Binance",
+        symbol: "BNB",
+        amount: amounts["BNB"]!,
+        price: prices["BNB"] ?? 0,
+      ),
+    ];
 
-          if (snapshot.hasData &&
-              snapshot.data != null &&
-              snapshot.data!.data() !=
-                  null) {
+    double portfolio = 0;
 
-            userData = snapshot.data!
-                .data()
-            as Map<String, dynamic>;
-          }
+    for (var c in loaded) {
 
-          double btc =
-          (userData['btc'] ?? 0)
-              .toDouble();
+      portfolio +=
+          c.amount * c.price;
+    }
 
-          double eth =
-          (userData['eth'] ?? 0)
-              .toDouble();
+    double profitLoss =
+        portfolio - invested;
 
-          double sol =
-          (userData['sol'] ?? 0)
-              .toDouble();
+    setState(() {
 
-          double btcPrice =
-          prices['bitcoin']['usd']
-              .toDouble();
+      coins = loaded;
 
-          double ethPrice =
-          prices['ethereum']['usd']
-              .toDouble();
+      totalPortfolio = portfolio;
 
-          double solPrice =
-          prices['solana']['usd']
-              .toDouble();
+      totalInvestment = invested;
 
-          double totalBalance =
-              (btc * btcPrice) +
-                  (eth * ethPrice) +
-                  (sol * solPrice);
+      totalProfitLoss = profitLoss;
 
-          return RefreshIndicator(
+      portfolioSpots = spots;
 
-            onRefresh: fetchPrices,
+      isLoading = false;
+    });
+  }
 
-            child: SingleChildScrollView(
+  Widget analyticsCard({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
 
-              physics:
-              const AlwaysScrollableScrollPhysics(),
+    return Expanded(
 
-              padding:
-              const EdgeInsets.all(16),
+      child: Container(
 
-              child: Column(
+        padding:
+        const EdgeInsets.all(16),
 
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+        decoration: BoxDecoration(
 
-                children: [
+          color: Colors.white,
 
-                  /// BALANCE CARD
-                  Container(
+          borderRadius:
+          BorderRadius.circular(18),
 
-                    padding:
-                    const EdgeInsets.all(
-                      24,
-                    ),
+          border: Border.all(
+            color: Colors.black12,
+          ),
+        ),
 
-                    decoration:
-                    BoxDecoration(
+        child: Column(
 
-                      gradient:
-                      const LinearGradient(
-                        colors: [
-                          Color(
-                            0xFF4FC3F7,
-                          ),
-                          Color(
-                            0xFF7C4DFF,
-                          ),
-                        ],
-                      ),
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
 
-                      borderRadius:
-                      BorderRadius.circular(
-                        24,
-                      ),
-                    ),
+          children: [
 
-                    child: Column(
+            CircleAvatar(
 
-                      crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
+              backgroundColor:
+              const Color(
+                  0xFF4FC3F7)
+                  .withOpacity(0.1),
 
-                      children: [
+              child: Icon(
+                icon,
 
-                        const Text(
-                          "Total Balance",
-
-                          style: TextStyle(
-                            color:
-                            Colors.white70,
-
-                            fontSize: 16,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 10,
-                        ),
-
-                        Text(
-                          "\$${totalBalance.toStringAsFixed(2)}",
-
-                          style:
-                          const TextStyle(
-                            color:
-                            Colors.white,
-
-                            fontSize: 32,
-
-                            fontWeight:
-                            FontWeight
-                                .bold,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 24,
-                        ),
-
-                        Row(
-                          children: [
-
-                            Expanded(
-                              child:
-                              ElevatedButton.icon(
-
-                                style:
-                                ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                  Colors
-                                      .white,
-
-                                  foregroundColor:
-                                  Colors
-                                      .black,
-                                ),
-
-                                onPressed: () {
-
-                                  Navigator.push(
-                                    context,
-
-                                    MaterialPageRoute(
-                                      builder:
-                                          (_) =>
-                                      const SendScreen(),
-                                    ),
-                                  );
-                                },
-
-                                icon:
-                                const Icon(
-                                  Icons.send,
-                                ),
-
-                                label:
-                                const Text(
-                                  "Send",
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(
-                              width: 12,
-                            ),
-
-                            Expanded(
-                              child:
-                              ElevatedButton.icon(
-
-                                style:
-                                ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                  Colors
-                                      .white,
-
-                                  foregroundColor:
-                                  Colors
-                                      .black,
-                                ),
-
-                                onPressed: () {
-
-                                  Navigator.push(
-                                    context,
-
-                                    MaterialPageRoute(
-                                      builder:
-                                          (_) =>
-                                      const ReceiveScreen(),
-                                    ),
-                                  );
-                                },
-
-                                icon:
-                                const Icon(
-                                  Icons.download,
-                                ),
-
-                                label:
-                                const Text(
-                                  "Receive",
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  const Text(
-                    "Your Coins",
-
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight:
-                      FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  buildCoinCard(
-                    context,
-                    "Bitcoin",
-                    "BTC",
-                    btc,
-                    btcPrice,
-                    Icons.currency_bitcoin,
-                  ),
-
-                  buildCoinCard(
-                    context,
-                    "Ethereum",
-                    "ETH",
-                    eth,
-                    ethPrice,
-                    Icons.token,
-                  ),
-
-                  buildCoinCard(
-                    context,
-                    "Solana",
-                    "SOL",
-                    sol,
-                    solPrice,
-                    Icons.bolt,
-                  ),
-                ],
+                color:
+                const Color(
+                    0xFF4FC3F7),
               ),
             ),
-          );
-        },
+
+            const SizedBox(height: 14),
+
+            Text(
+              title,
+
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 12,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              value,
+
+              style: const TextStyle(
+                fontWeight:
+                FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget buildCoinCard(
-      BuildContext context,
-      String name,
-      String symbol,
-      double amount,
-      double price,
-      IconData icon,
-      ) {
+  Widget graphWidget() {
+
+    double maxY = 100;
+
+    if (portfolioSpots.isNotEmpty) {
+
+      maxY = portfolioSpots
+          .map((e) => e.y)
+          .reduce((a, b) =>
+      a > b ? a : b);
+
+      if (maxY < 100) {
+        maxY = 100;
+      }
+    }
+
+    return Container(
+
+      padding: const EdgeInsets.all(16),
+
+      decoration: BoxDecoration(
+
+        color: Colors.white,
+
+        borderRadius:
+        BorderRadius.circular(20),
+
+        border: Border.all(
+          color: Colors.black12,
+        ),
+      ),
+
+      child: Column(
+
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+
+        children: [
+
+          Row(
+
+            mainAxisAlignment:
+            MainAxisAlignment.spaceBetween,
+
+            children: [
+
+              const Text(
+
+                "Portfolio Performance",
+
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              TextButton(
+
+                onPressed: () {
+
+                  Navigator.push(
+
+                    context,
+
+                    MaterialPageRoute(
+
+                      builder: (_) =>
+                          PredictionScreen(
+                            coins: coins,
+                          ),
+                    ),
+                  );
+                },
+
+                child: const Text(
+                  "Market Prediction",
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          SizedBox(
+
+            height: 260,
+
+            child: Padding(
+
+              padding:
+              const EdgeInsets.only(
+                right: 12,
+                top: 10,
+              ),
+
+              child: LineChart(
+
+                LineChartData(
+
+                  minX: 0,
+
+                  maxX:
+                  portfolioSpots.length
+                      .toDouble() - 1,
+
+                  minY: 0,
+
+                  maxY:
+                  maxY + (maxY * 0.2),
+
+                  clipData:
+                  FlClipData.all(),
+
+                  gridData:
+                  FlGridData(
+                    show: true,
+                  ),
+
+                  borderData:
+                  FlBorderData(
+
+                    show: true,
+
+                    border: Border.all(
+                      color: Colors.black26,
+                    ),
+                  ),
+
+                  titlesData:
+                  FlTitlesData(
+
+                    topTitles:
+                    AxisTitles(
+
+                      sideTitles:
+                      SideTitles(
+                        showTitles: false,
+                      ),
+                    ),
+
+                    rightTitles:
+                    AxisTitles(
+
+                      sideTitles:
+                      SideTitles(
+                        showTitles: false,
+                      ),
+                    ),
+
+                    bottomTitles:
+                    AxisTitles(
+
+                      axisNameWidget:
+                      const Padding(
+
+                        padding:
+                        EdgeInsets.only(
+                          top: 10,
+                        ),
+
+                        child: Text(
+
+                          "Transactions",
+
+                          style: TextStyle(
+                            fontWeight:
+                            FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+
+                      sideTitles:
+                      SideTitles(
+
+                        showTitles: true,
+
+                        reservedSize: 30,
+
+                        interval: 1,
+
+                        getTitlesWidget:
+                            (
+                            value,
+                            meta,
+                            ) {
+
+                          return Padding(
+
+                            padding:
+                            const EdgeInsets.only(
+                              top: 8,
+                            ),
+
+                            child: Text(
+
+                              "T${value.toInt() + 1}",
+
+                              style:
+                              const TextStyle(
+                                fontSize: 10,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    leftTitles:
+                    AxisTitles(
+
+                      axisNameWidget:
+                      const Padding(
+
+                        padding:
+                        EdgeInsets.only(
+                          bottom: 12,
+                        ),
+
+                        child: Text(
+
+                          "Value (USD)",
+
+                          style: TextStyle(
+                            fontWeight:
+                            FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+
+                      sideTitles:
+                      SideTitles(
+
+                        showTitles: true,
+
+                        reservedSize: 42,
+
+                        interval: maxY / 5,
+
+                        getTitlesWidget:
+                            (
+                            value,
+                            meta,
+                            ) {
+
+                          return Padding(
+
+                            padding:
+                            const EdgeInsets.only(
+                              right: 6,
+                            ),
+
+                            child: Text(
+
+                              "\$${value.toInt()}",
+
+                              style:
+                              const TextStyle(
+                                fontSize: 9,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+
+                  lineBarsData: [
+
+                    LineChartBarData(
+
+                      spots:
+                      portfolioSpots,
+
+                      isCurved: true,
+
+                      barWidth: 3,
+
+                      dotData:
+                      FlDotData(
+                        show: true,
+                      ),
+
+                      belowBarData:
+                      BarAreaData(
+                        show: true,
+
+                        color:
+                        const Color(
+                            0xFF4FC3F7)
+                            .withOpacity(0.12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget actionButton({
+    required String text,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+
+    return Expanded(
+
+      child: InkWell(
+
+        onTap: onTap,
+
+        child: Container(
+
+          padding:
+          const EdgeInsets.symmetric(
+            vertical: 14,
+          ),
+
+          decoration: BoxDecoration(
+
+            color:
+            const Color(0xFF4FC3F7),
+
+            borderRadius:
+            BorderRadius.circular(16),
+          ),
+
+          child: Row(
+
+            mainAxisAlignment:
+            MainAxisAlignment.center,
+
+            children: [
+
+              Icon(
+                icon,
+                color: Colors.white,
+                size: 18,
+              ),
+
+              const SizedBox(width: 8),
+
+              Text(
+
+                text,
+
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight:
+                  FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget coinCard(Coin coin) {
 
     return Container(
 
       margin:
-      const EdgeInsets.only(bottom: 14),
+      const EdgeInsets.only(
+        bottom: 14,
+      ),
 
       padding:
-      const EdgeInsets.all(18),
+      const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
-        color:
-        Theme.of(context).cardColor,
+
+        color: Colors.white,
 
         borderRadius:
         BorderRadius.circular(18),
@@ -403,71 +671,276 @@ class _DashboardScreenState
         children: [
 
           CircleAvatar(
-            radius: 24,
 
             backgroundColor:
-            const Color(0xFF4FC3F7)
-                .withOpacity(0.12),
+            const Color(
+                0xFF4FC3F7)
+                .withOpacity(0.1),
 
-            child: Icon(
-              icon,
-              color:
-              const Color(0xFF4FC3F7),
+            child: Text(
+              coin.symbol[0],
             ),
           ),
 
           const SizedBox(width: 14),
 
           Expanded(
+
             child: Column(
 
               crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
 
               children: [
 
                 Text(
-                  name,
+                  coin.name,
 
                   style:
                   const TextStyle(
                     fontWeight:
                     FontWeight.bold,
-
-                    fontSize: 18,
+                    fontSize: 16,
                   ),
                 ),
 
-                Text(symbol),
+                Text(
+                  "${coin.amount.toStringAsFixed(4)} ${coin.symbol}",
+                ),
               ],
             ),
           ),
 
-          Column(
+          Text(
+            "\$${coin.price.toStringAsFixed(2)}",
 
-            crossAxisAlignment:
-            CrossAxisAlignment.end,
-
-            children: [
-
-              Text(
-                amount.toString(),
-
-                style:
-                const TextStyle(
-                  fontWeight:
-                  FontWeight.bold,
-
-                  fontSize: 18,
-                ),
-              ),
-
-              Text(
-                "\$${price.toStringAsFixed(2)}",
-              ),
-            ],
+            style: const TextStyle(
+              fontWeight:
+              FontWeight.bold,
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    return Scaffold(
+
+      backgroundColor:
+      Colors.white,
+
+      appBar: AppBar(
+
+        backgroundColor:
+        Colors.white,
+
+        centerTitle: true,
+
+        elevation: 0,
+
+        title: const Text(
+
+          "Dashboard",
+
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight:
+            FontWeight.bold,
+          ),
+        ),
+      ),
+
+      body:
+      isLoading
+
+          ? const Center(
+        child:
+        CircularProgressIndicator(),
+      )
+
+          : RefreshIndicator(
+
+        onRefresh: loadData,
+
+        child: ListView(
+
+          padding:
+          const EdgeInsets.all(16),
+
+          children: [
+
+            Container(
+
+              padding:
+              const EdgeInsets.all(20),
+
+              decoration: BoxDecoration(
+
+                gradient:
+                const LinearGradient(
+                  colors: [
+                    Color(0xFF4FC3F7),
+                    Color(0xFF7C4DFF),
+                  ],
+                ),
+
+                borderRadius:
+                BorderRadius.circular(
+                    22),
+              ),
+
+              child: Column(
+
+                crossAxisAlignment:
+                CrossAxisAlignment
+                    .start,
+
+                children: [
+
+                  const Text(
+
+                    "Total Portfolio",
+
+                    style: TextStyle(
+                      color:
+                      Colors.white70,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 8,
+                  ),
+
+                  Text(
+
+                    "\$${totalPortfolio.toStringAsFixed(2)}",
+
+                    style:
+                    const TextStyle(
+                      color:
+                      Colors.white,
+                      fontSize: 30,
+                      fontWeight:
+                      FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            Row(
+              children: [
+
+                actionButton(
+
+                  text: "Send",
+
+                  icon: Icons.send,
+
+                  onTap: () {
+
+                    Navigator.push(
+                      context,
+
+                      MaterialPageRoute(
+                        builder: (_) =>
+                        const SendScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(width: 12),
+
+                actionButton(
+
+                  text: "Receive",
+
+                  icon:
+                  Icons.download,
+
+                  onTap: () {
+
+                    Navigator.push(
+                      context,
+
+                      MaterialPageRoute(
+                        builder: (_) =>
+                        const ReceiveScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+
+                analyticsCard(
+
+                  title:
+                  "Invested",
+
+                  value:
+                  "\$${totalInvestment.toStringAsFixed(2)}",
+
+                  icon:
+                  Icons.account_balance_wallet,
+                ),
+
+                const SizedBox(width: 12),
+
+                analyticsCard(
+
+                  title:
+                  totalProfitLoss >= 0
+                      ? "Profit"
+                      : "Loss",
+
+                  value:
+                  "\$${totalProfitLoss.toStringAsFixed(2)}",
+
+                  icon:
+                  totalProfitLoss >= 0
+                      ? Icons.trending_up
+                      : Icons.trending_down,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            graphWidget(),
+
+            const SizedBox(height: 20),
+
+            const Text(
+
+              "Portfolio Coins",
+
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight:
+                FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            ...coins.map(
+                  (e) => coinCard(e),
+            ),
+          ],
+        ),
       ),
     );
   }

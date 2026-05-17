@@ -320,9 +320,7 @@ class _SettingsScreenState
 
         leading: CircleAvatar(
           backgroundColor:
-          iconColor.withValues(
-            alpha: 0.12,
-          ),
+          iconColor.withOpacity(0.12),
 
           child: Icon(
             icon,
@@ -410,12 +408,12 @@ class _SettingsScreenState
         leading: CircleAvatar(
           backgroundColor:
           const Color(0xFF4FC3F7)
-              .withValues(alpha: 0.12),
+              .withOpacity(0.12),
 
-          child: Icon(
-            icon,
+          child: const Icon(
+            Icons.dark_mode_outlined,
             color:
-            const Color(0xFF4FC3F7),
+            Color(0xFF4FC3F7),
           ),
         ),
 
@@ -579,9 +577,9 @@ class _SettingsScreenState
               subtitle:
               "Update your name and email",
 
-              onTap: () {
+              onTap: () async {
 
-                Navigator.push(
+                await Navigator.push(
                   context,
 
                   MaterialPageRoute(
@@ -589,6 +587,12 @@ class _SettingsScreenState
                     const EditProfileScreen(),
                   ),
                 );
+
+                await FirebaseAuth.instance
+                    .currentUser
+                    ?.reload();
+
+                setState(() {});
               },
             ),
 

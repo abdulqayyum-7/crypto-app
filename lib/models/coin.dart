@@ -1,17 +1,13 @@
 class Coin {
-  String name;
-  double amount;
-  double price;
-  bool isFavorite;
-  String symbol;
+  final String name;
+  final String symbol;
+  final double price;
+  final double amount;
 
   Coin({
     required this.name,
-    required this.amount,
-    required this.price,
-    this.isFavorite = false,
     required this.symbol,
+    required this.price,
+    required this.amount,
   });
-
-  double get totalValue => amount * price;
 }
