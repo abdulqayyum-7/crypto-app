@@ -5,6 +5,7 @@ import '../models/coin.dart';
 import '../services/coin_api_service.dart';
 
 class PredictionScreen extends StatefulWidget {
+
   final List<Coin> coins;
 
   const PredictionScreen({
@@ -25,9 +26,10 @@ class _PredictionScreenState
 
   late Coin selectedCoin;
 
-  int selectedMonth = 0;
+  int selectedMonth = 6;
 
   final List<String> allMonths = [
+
     "Jan",
     "Feb",
     "Mar",
@@ -96,6 +98,7 @@ class _PredictionScreenState
     );
 
     while (prediction.length < 13) {
+
       prediction.add(
         prediction.last,
       );
@@ -108,6 +111,7 @@ class _PredictionScreenState
     i++) {
 
       spots.add(
+
         FlSpot(
           i.toDouble(),
           prediction[i],
@@ -156,14 +160,14 @@ class _PredictionScreenState
             children: [
 
               CircleAvatar(
+
                 backgroundColor:
                 const Color(
                     0xFF4FC3F7)
-                    .withValues(
-                  alpha: 0.12,
-                ),
+                    .withOpacity(0.12),
 
                 child: Text(
+
                   selectedCoin.symbol[0],
 
                   style:
@@ -180,7 +184,9 @@ class _PredictionScreenState
               const SizedBox(width: 12),
 
               Expanded(
+
                 child: Column(
+
                   crossAxisAlignment:
                   CrossAxisAlignment
                       .start,
@@ -188,6 +194,7 @@ class _PredictionScreenState
                   children: [
 
                     Text(
+
                       selectedCoin.name,
 
                       style:
@@ -199,6 +206,7 @@ class _PredictionScreenState
                     ),
 
                     Text(
+
                       selectedCoin.symbol,
 
                       style:
@@ -212,6 +220,7 @@ class _PredictionScreenState
               ),
 
               Text(
+
                 "\$${selectedCoin.price.toStringAsFixed(2)}",
 
                 style:
@@ -224,9 +233,10 @@ class _PredictionScreenState
             ],
           ),
 
-          const SizedBox(height: 22),
+          const SizedBox(height: 24),
 
           const Text(
+
             "12 Month Market Prediction",
 
             style: TextStyle(
@@ -236,238 +246,288 @@ class _PredictionScreenState
             ),
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
 
           SizedBox(
-            height: 320,
 
-            child: LineChart(
+            height: 360,
 
-              LineChartData(
+            child: Padding(
 
-                minY: minY * 0.95,
-                maxY: maxY * 1.05,
+              padding:
+              const EdgeInsets.only(
+                left: 14,
+                right: 20,
+                top: 10,
+                bottom: 20,
+              ),
 
-                gridData: FlGridData(
+              child: LineChart(
 
-                  show: true,
+                LineChartData(
 
-                  horizontalInterval:
-                  ((maxY - minY) / 5),
-                ),
+                  minX: 0,
+                  maxX: 12,
 
-                borderData:
-                FlBorderData(
-                  show: true,
-                ),
+                  minY: minY * 0.95,
+                  maxY: maxY * 1.05,
 
-                titlesData:
-                FlTitlesData(
+                  clipData:
+                  FlClipData.all(),
 
-                  topTitles:
-                  AxisTitles(
-                    sideTitles:
-                    SideTitles(
-                      showTitles:
-                      false,
+                  gridData:
+                  FlGridData(
+
+                    show: true,
+
+                    horizontalInterval:
+                    ((maxY - minY) / 5),
+                  ),
+
+                  borderData:
+                  FlBorderData(
+
+                    show: true,
+
+                    border: Border.all(
+                      color: Colors.black26,
                     ),
                   ),
 
-                  rightTitles:
-                  AxisTitles(
-                    sideTitles:
-                    SideTitles(
-                      showTitles:
-                      false,
-                    ),
-                  ),
+                  titlesData:
+                  FlTitlesData(
 
-                  bottomTitles:
-                  AxisTitles(
+                    topTitles:
+                    AxisTitles(
 
-                    axisNameWidget:
-                    const Padding(
-                      padding:
-                      EdgeInsets.only(
-                        top: 10,
+                      sideTitles:
+                      SideTitles(
+                        showTitles: false,
                       ),
+                    ),
 
-                      child: Text(
-                        "Timeline",
+                    rightTitles:
+                    AxisTitles(
 
-                        style: TextStyle(
-                          fontWeight:
-                          FontWeight.bold,
-                          fontSize: 12,
+                      sideTitles:
+                      SideTitles(
+                        showTitles: false,
+                      ),
+                    ),
+
+                    bottomTitles:
+                    AxisTitles(
+
+                      axisNameWidget:
+                      const Padding(
+
+                        padding:
+                        EdgeInsets.only(
+                          top: 12,
+                        ),
+
+                        child: Text(
+
+                          "12 Month Timeline",
+
+                          style: TextStyle(
+                            fontWeight:
+                            FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
+
+                      sideTitles:
+                      SideTitles(
+
+                        showTitles: true,
+
+                        interval: 1,
+
+                        reservedSize: 42,
+
+                        getTitlesWidget:
+                            (
+                            value,
+                            meta,
+                            ) {
+
+                          int index =
+                          value.toInt();
+
+                          if (index >= 0 &&
+                              index <
+                                  timelineMonths
+                                      .length) {
+
+                            bool isCenter =
+                                index == 6;
+
+                            return SideTitleWidget(
+
+                              axisSide:
+                              meta.axisSide,
+
+                              child: Padding(
+
+                                padding:
+                                const EdgeInsets.only(
+                                  top: 8,
+                                ),
+
+                                child: Text(
+
+                                  timelineMonths[
+                                  index],
+
+                                  style:
+                                  TextStyle(
+
+                                    fontSize:
+                                    isCenter
+                                        ? 11
+                                        : 9,
+
+                                    fontWeight:
+                                    isCenter
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+
+                                    color:
+                                    isCenter
+                                        ? const Color(
+                                        0xFF7C4DFF)
+                                        : Colors.black,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return const SizedBox();
+                        },
+                      ),
                     ),
 
-                    sideTitles:
-                    SideTitles(
+                    leftTitles:
+                    AxisTitles(
 
-                      showTitles:
-                      true,
+                      axisNameWidget:
+                      const Padding(
 
-                      interval: 1,
+                        padding:
+                        EdgeInsets.only(
+                          bottom: 12,
+                        ),
 
-                      reservedSize:
-                      42,
+                        child: Text(
 
-                      getTitlesWidget:
-                          (
-                          value,
-                          meta,
-                          ) {
+                          "Price (USD)",
 
-                        int index =
-                        value.toInt();
+                          style: TextStyle(
+                            fontWeight:
+                            FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
 
-                        if (index >= 0 &&
-                            index <
-                                timelineMonths
-                                    .length) {
+                      sideTitles:
+                      SideTitles(
 
-                          bool isCenter =
-                              index == 6;
+                        showTitles: true,
 
-                          return Padding(
-                            padding:
-                            const EdgeInsets.only(
-                              top: 8,
-                            ),
+                        reservedSize: 75,
 
-                            child: Text(
-                              timelineMonths[
-                              index],
+                        interval:
+                        ((maxY - minY) / 5),
 
-                              style:
-                              TextStyle(
-                                fontSize:
-                                isCenter
-                                    ? 11
-                                    : 9,
+                        getTitlesWidget:
+                            (
+                            value,
+                            meta,
+                            ) {
 
-                                fontWeight:
-                                isCenter
-                                    ? FontWeight
-                                    .bold
-                                    : FontWeight
-                                    .normal,
+                          String label;
 
-                                color:
-                                isCenter
-                                    ? const Color(
-                                    0xFF7C4DFF)
-                                    : Colors
-                                    .black,
+                          if (value >= 1000) {
+
+                            label =
+                            "\$${(value / 1000).toStringAsFixed(1)}K";
+
+                          } else {
+
+                            label =
+                            "\$${value.toStringAsFixed(0)}";
+                          }
+
+                          return SideTitleWidget(
+
+                            axisSide:
+                            meta.axisSide,
+
+                            child: Padding(
+
+                              padding:
+                              const EdgeInsets.only(
+                                right: 6,
+                              ),
+
+                              child: Text(
+
+                                label,
+
+                                style:
+                                const TextStyle(
+                                  fontSize: 9,
+                                ),
                               ),
                             ),
                           );
-                        }
-
-                        return const SizedBox();
-                      },
+                        },
+                      ),
                     ),
                   ),
 
-                  leftTitles:
-                  AxisTitles(
+                  lineBarsData: [
 
-                    axisNameWidget:
-                    const Padding(
-                      padding:
-                      EdgeInsets.only(
-                        bottom: 10,
+                    LineChartBarData(
+
+                      spots: spots,
+
+                      isCurved: true,
+
+                      barWidth: 3,
+
+                      dotData:
+                      FlDotData(
+                        show: true,
                       ),
 
-                      child: Text(
-                        "Price (USD)",
+                      belowBarData:
+                      BarAreaData(
 
-                        style: TextStyle(
-                          fontWeight:
-                          FontWeight.bold,
-                          fontSize: 12,
+                        show: true,
+
+                        color:
+                        const Color(
+                            0xFF4FC3F7)
+                            .withOpacity(
+                          0.08,
                         ),
                       ),
                     ),
-
-                    sideTitles:
-                    SideTitles(
-
-                      showTitles:
-                      true,
-
-                      reservedSize:
-                      55,
-
-                      interval:
-                      ((maxY -
-                          minY) /
-                          5),
-
-                      getTitlesWidget:
-                          (
-                          value,
-                          meta,
-                          ) {
-
-                        return Padding(
-                          padding:
-                          const EdgeInsets.only(
-                            right: 4,
-                          ),
-
-                          child: Text(
-                            "\$${value.toStringAsFixed(0)}",
-
-                            style:
-                            const TextStyle(
-                              fontSize:
-                              8,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                  ],
                 ),
-
-                lineBarsData: [
-
-                  LineChartBarData(
-
-                    spots: spots,
-
-                    isCurved: true,
-
-                    barWidth: 3,
-
-                    dotData:
-                    FlDotData(
-                      show: true,
-                    ),
-
-                    belowBarData:
-                    BarAreaData(
-                      show: true,
-
-                      color:
-                      const Color(
-                          0xFF4FC3F7)
-                          .withValues(
-                        alpha: 0.08,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           const Text(
+
             "Prediction Settings",
 
             style: TextStyle(
@@ -578,14 +638,14 @@ class _PredictionScreenState
             },
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 24),
 
           Container(
 
             width: double.infinity,
 
             padding:
-            const EdgeInsets.all(18),
+            const EdgeInsets.all(20),
 
             decoration: BoxDecoration(
 
@@ -599,7 +659,7 @@ class _PredictionScreenState
 
               borderRadius:
               BorderRadius.circular(
-                  18),
+                  20),
             ),
 
             child: Column(
@@ -607,6 +667,7 @@ class _PredictionScreenState
               children: [
 
                 const Text(
+
                   "Expected Price",
 
                   style: TextStyle(
@@ -615,25 +676,27 @@ class _PredictionScreenState
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
 
                 Text(
+
                   "\$${predictedPrice.toStringAsFixed(2)}",
 
                   style:
                   const TextStyle(
                     color:
                     Colors.white,
-                    fontSize: 30,
+                    fontSize: 32,
                     fontWeight:
                     FontWeight.bold,
                   ),
                 ),
 
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
 
                 Text(
-                  "${selectedCoin.name} predicted price around ${allMonths[selectedMonth]}",
+
+                  "${selectedCoin.name} expected price around ${allMonths[selectedMonth]}",
 
                   textAlign:
                   TextAlign.center,
@@ -658,16 +721,19 @@ class _PredictionScreenState
     return Scaffold(
 
       backgroundColor:
-      Colors.white,
+      const Color(0xFFF5F7FB),
 
       appBar: AppBar(
 
         backgroundColor:
         Colors.white,
 
+        elevation: 0,
+
         centerTitle: true,
 
         title: const Text(
+
           "Market Prediction",
 
           style: TextStyle(
@@ -678,15 +744,18 @@ class _PredictionScreenState
         ),
       ),
 
-      body: ListView(
+      body: SafeArea(
 
-        padding:
-        const EdgeInsets.all(16),
+        child: ListView(
 
-        children: [
+          padding:
+          const EdgeInsets.all(16),
 
-          predictionCard(),
-        ],
+          children: [
+
+            predictionCard(),
+          ],
+        ),
       ),
     );
   }

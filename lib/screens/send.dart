@@ -72,22 +72,53 @@ class _SendScreenState
       final user =
           FirebaseAuth.instance.currentUser;
 
-      final docRef = FirebaseFirestore
-          .instance
-          .collection('users')
-          .doc(user!.uid);
+      if (user == null) return;
 
-      final snapshot =
-      await docRef.get();
+      // =========================
+      // GET PORTFOLIO DATA
+      // =========================
 
-      final data =
-          snapshot.data() ?? {};
+      final portfolioSnapshot =
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("portfolio")
+          .get();
 
-      String field =
-      selectedCoin.toLowerCase();
+      double currentBalance = 0;
 
-      double currentBalance =
-      (data[field] ?? 0).toDouble();
+      for (var doc in portfolioSnapshot.docs) {
+
+        final data = doc.data();
+
+        String coin =
+            data["coin"] ?? "";
+
+        double units =
+            (data["amount"] as num?)
+                ?.toDouble() ?? 0;
+
+        String type =
+            data["type"] ?? "";
+
+        if (coin == selectedCoin) {
+
+          if (type == "buy" ||
+              type == "receive") {
+
+            currentBalance += units;
+
+          } else if (type == "send" ||
+              type == "sell") {
+
+            currentBalance -= units;
+          }
+        }
+      }
+
+      // =========================
+      // CHECK BALANCE
+      // =========================
 
       if (amount > currentBalance) {
 
@@ -97,9 +128,9 @@ class _SendScreenState
 
         ScaffoldMessenger.of(context)
             .showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              "Insufficient balance",
+              "Insufficient balance\nAvailable: ${currentBalance.toStringAsFixed(4)} $selectedCoin",
             ),
           ),
         );
@@ -107,40 +138,83 @@ class _SendScreenState
         return;
       }
 
-      await docRef.update({
-        field:
-        currentBalance - amount,
-      });
+      // =========================
+      // GET CURRENT PRICE
+      // =========================
+
+      double currentPrice = 0;
+
+      for (var doc in portfolioSnapshot.docs) {
+
+        final data = doc.data();
+
+        if (data["coin"] ==
+            selectedCoin) {
+
+          currentPrice =
+              (data["price"] as num?)
+                  ?.toDouble() ?? 0;
+        }
+      }
+
+      // =========================
+      // SAVE SEND TRANSACTION
+      // =========================
 
       await FirebaseFirestore.instance
-          .collection('transactions')
+          .collection("users")
+          .doc(user.uid)
+          .collection("portfolio")
           .add({
 
-        'uid': user.uid,
+        "coin": selectedCoin,
 
-        'type': 'send',
+        "amount": amount,
 
-        'coinName': selectedCoin,
+        "price": currentPrice,
 
-        'amount': amount,
+        "type": "send",
 
-        'address': address,
+        "address": address,
 
-        'timestamp':
-        Timestamp.now(),
+        "timestamp":
+        FieldValue.serverTimestamp(),
+      });
+
+      // =========================
+      // SAVE TRANSACTION HISTORY
+      // =========================
+
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("transactions")
+          .add({
+
+        "coin": selectedCoin,
+
+        "amount": amount,
+
+        "address": address,
+
+        "type": "send",
+
+        "timestamp":
+        FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
 
-      Navigator.pop(context);
-
       ScaffoldMessenger.of(context)
           .showSnackBar(
-        const SnackBar(
-          content:
-          Text("Coin Sent"),
+        SnackBar(
+          content: Text(
+            "$amount $selectedCoin Sent Successfully",
+          ),
         ),
       );
+
+      Navigator.pop(context);
 
     } catch (e) {
 
@@ -333,6 +407,13 @@ class _SendScreenState
                     "Solana (SOL)",
                   ),
                 ),
+
+                DropdownMenuItem(
+                  value: "BNB",
+                  child: Text(
+                    "Binance (BNB)",
+                  ),
+                ),
               ],
 
               onChanged: (value) {
@@ -355,7 +436,7 @@ class _SendScreenState
 
               decoration:
               fieldDecoration(
-                "Amount",
+                "Coin Units",
                 Icons.account_balance_wallet,
               ),
             ),

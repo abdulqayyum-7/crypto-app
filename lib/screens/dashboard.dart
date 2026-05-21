@@ -5,12 +5,17 @@ import 'package:flutter/material.dart';
 
 import '../models/coin.dart';
 import '../services/coin_api_service.dart';
+import 'ai_analysis_screen.dart';
+import 'buy_coin.dart';
 import 'prediction_screen.dart';
-import 'send.dart';
 import 'receive.dart';
+import 'send.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+
+  const DashboardScreen({
+    super.key,
+  });
 
   @override
   State<DashboardScreen> createState() =>
@@ -60,72 +65,79 @@ class _DashboardScreenState
         .get();
 
     Map<String, double> amounts = {
+
       "BTC": 0,
       "ETH": 0,
       "SOL": 0,
       "BNB": 0,
     };
 
-    double invested = 0;
+    double totalBuyValue = 0;
+
+    double totalSellValue = 0;
 
     List<FlSpot> spots = [];
 
     int index = 0;
-
-    double runningValue = 0;
 
     for (var doc in snapshot.docs) {
 
       final data = doc.data();
 
       String coin =
-      data["coin"];
+          data["coin"] ?? "BTC";
 
       double amount =
       (data["amount"] as num)
           .toDouble();
 
-      double price =
+      double transactionPrice =
       (data["price"] as num)
           .toDouble();
 
       String type =
-      data["type"];
+          data["type"] ?? "buy";
 
-      if (type == "receive") {
+      if (type == "buy" ||
+          type == "receive") {
 
         amounts[coin] =
             (amounts[coin] ?? 0) +
                 amount;
 
-        invested +=
-            amount * price;
+        totalBuyValue +=
+            amount * transactionPrice;
 
-      } else {
+      } else if (type == "sell" ||
+          type == "send") {
 
         amounts[coin] =
             (amounts[coin] ?? 0) -
                 amount;
 
-        invested -=
-            amount * price;
+        totalSellValue +=
+            amount * transactionPrice;
+
+        if (amounts[coin]! < 0) {
+          amounts[coin] = 0;
+        }
       }
 
-      runningValue = 0;
+      double runningPortfolio = 0;
 
-      amounts.forEach((key, value) {
+      amounts.forEach((symbol, qty) {
 
-        if (prices[key] != null) {
+        double currentPrice =
+            prices[symbol] ?? 0;
 
-          runningValue +=
-              value * prices[key];
-        }
+        runningPortfolio +=
+            qty * currentPrice;
       });
 
       spots.add(
         FlSpot(
           index.toDouble(),
-          runningValue,
+          runningPortfolio,
         ),
       );
 
@@ -138,10 +150,6 @@ class _DashboardScreenState
 
         const FlSpot(0, 0),
         const FlSpot(1, 0),
-        const FlSpot(2, 0),
-        const FlSpot(3, 0),
-        const FlSpot(4, 0),
-        const FlSpot(5, 0),
       ];
     }
 
@@ -176,26 +184,34 @@ class _DashboardScreenState
       ),
     ];
 
-    double portfolio = 0;
+    double currentPortfolio = 0;
 
-    for (var c in loaded) {
+    for (var coin in loaded) {
 
-      portfolio +=
-          c.amount * c.price;
+      currentPortfolio +=
+          coin.amount * coin.price;
     }
 
+    double investedAmount =
+        totalBuyValue -
+            totalSellValue;
+
     double profitLoss =
-        portfolio - invested;
+        currentPortfolio -
+            investedAmount;
 
     setState(() {
 
       coins = loaded;
 
-      totalPortfolio = portfolio;
+      totalPortfolio =
+          currentPortfolio;
 
-      totalInvestment = invested;
+      totalInvestment =
+          investedAmount;
 
-      totalProfitLoss = profitLoss;
+      totalProfitLoss =
+          profitLoss;
 
       portfolioSpots = spots;
 
@@ -203,7 +219,80 @@ class _DashboardScreenState
     });
   }
 
+  Widget actionButton({
+
+    required String text,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+
+    return Expanded(
+
+      child: InkWell(
+
+        onTap: onTap,
+
+        borderRadius:
+        BorderRadius.circular(16),
+
+        child: Container(
+
+          padding:
+          const EdgeInsets.symmetric(
+            vertical: 15,
+          ),
+
+          decoration: BoxDecoration(
+
+            color:
+            const Color(0xFF4FC3F7),
+
+            borderRadius:
+            BorderRadius.circular(16),
+          ),
+
+          child: Row(
+
+            mainAxisAlignment:
+            MainAxisAlignment.center,
+
+            children: [
+
+              Icon(
+                icon,
+                color: Colors.white,
+                size: 18,
+              ),
+
+              const SizedBox(width: 8),
+
+              Flexible(
+
+                child: Text(
+
+                  text,
+
+                  overflow:
+                  TextOverflow.ellipsis,
+
+                  style: const TextStyle(
+
+                    color: Colors.white,
+
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget analyticsCard({
+
     required String title,
     required String value,
     required IconData icon,
@@ -238,22 +327,20 @@ class _DashboardScreenState
             CircleAvatar(
 
               backgroundColor:
-              const Color(
-                  0xFF4FC3F7)
+              const Color(0xFF4FC3F7)
                   .withOpacity(0.1),
 
               child: Icon(
                 icon,
-
                 color:
-                const Color(
-                    0xFF4FC3F7),
+                const Color(0xFF4FC3F7),
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             Text(
+
               title,
 
               style: const TextStyle(
@@ -265,6 +352,7 @@ class _DashboardScreenState
             const SizedBox(height: 6),
 
             Text(
+
               value,
 
               style: const TextStyle(
@@ -287,8 +375,9 @@ class _DashboardScreenState
 
       maxY = portfolioSpots
           .map((e) => e.y)
-          .reduce((a, b) =>
-      a > b ? a : b);
+          .reduce(
+            (a, b) => a > b ? a : b,
+      );
 
       if (maxY < 100) {
         maxY = 100;
@@ -297,14 +386,14 @@ class _DashboardScreenState
 
     return Container(
 
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
 
       decoration: BoxDecoration(
 
         color: Colors.white,
 
         borderRadius:
-        BorderRadius.circular(20),
+        BorderRadius.circular(22),
 
         border: Border.all(
           color: Colors.black12,
@@ -330,8 +419,9 @@ class _DashboardScreenState
                 "Portfolio Performance",
 
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  fontWeight:
+                  FontWeight.bold,
                 ),
               ),
 
@@ -354,23 +444,32 @@ class _DashboardScreenState
                 },
 
                 child: const Text(
-                  "Market Prediction",
+
+                  "Prediction",
+
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                    FontWeight.w600,
+                  ),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
 
           SizedBox(
 
-            height: 260,
+            height: 300,
 
             child: Padding(
 
               padding:
               const EdgeInsets.only(
-                right: 12,
+                left: 8,
+                right: 18,
+                bottom: 8,
                 top: 10,
               ),
 
@@ -381,24 +480,27 @@ class _DashboardScreenState
                   minX: 0,
 
                   maxX:
-                  portfolioSpots.length
-                      .toDouble() - 1,
+                  portfolioSpots.length > 1
+                      ? portfolioSpots.length
+                      .toDouble() - 1
+                      : 1,
 
                   minY: 0,
 
                   maxY:
-                  maxY + (maxY * 0.2),
+                  maxY + (maxY * 0.15),
 
-                  clipData:
-                  FlClipData.all(),
+                  gridData: FlGridData(
 
-                  gridData:
-                  FlGridData(
                     show: true,
+
+                    horizontalInterval:
+                    maxY / 6,
+
+                    verticalInterval: 1,
                   ),
 
-                  borderData:
-                  FlBorderData(
+                  borderData: FlBorderData(
 
                     show: true,
 
@@ -407,11 +509,9 @@ class _DashboardScreenState
                     ),
                   ),
 
-                  titlesData:
-                  FlTitlesData(
+                  titlesData: FlTitlesData(
 
-                    topTitles:
-                    AxisTitles(
+                    topTitles: AxisTitles(
 
                       sideTitles:
                       SideTitles(
@@ -428,96 +528,18 @@ class _DashboardScreenState
                       ),
                     ),
 
-                    bottomTitles:
-                    AxisTitles(
-
-                      axisNameWidget:
-                      const Padding(
-
-                        padding:
-                        EdgeInsets.only(
-                          top: 10,
-                        ),
-
-                        child: Text(
-
-                          "Transactions",
-
-                          style: TextStyle(
-                            fontWeight:
-                            FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-
-                      sideTitles:
-                      SideTitles(
-
-                        showTitles: true,
-
-                        reservedSize: 30,
-
-                        interval: 1,
-
-                        getTitlesWidget:
-                            (
-                            value,
-                            meta,
-                            ) {
-
-                          return Padding(
-
-                            padding:
-                            const EdgeInsets.only(
-                              top: 8,
-                            ),
-
-                            child: Text(
-
-                              "T${value.toInt() + 1}",
-
-                              style:
-                              const TextStyle(
-                                fontSize: 10,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-
                     leftTitles:
                     AxisTitles(
 
-                      axisNameWidget:
-                      const Padding(
-
-                        padding:
-                        EdgeInsets.only(
-                          bottom: 12,
-                        ),
-
-                        child: Text(
-
-                          "Value (USD)",
-
-                          style: TextStyle(
-                            fontWeight:
-                            FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-
                       sideTitles:
                       SideTitles(
 
                         showTitles: true,
 
-                        reservedSize: 42,
+                        reservedSize: 55,
 
-                        interval: maxY / 5,
+                        interval:
+                        maxY / 6,
 
                         getTitlesWidget:
                             (
@@ -536,9 +558,58 @@ class _DashboardScreenState
 
                               "\$${value.toInt()}",
 
+                              textAlign:
+                              TextAlign.right,
+
                               style:
                               const TextStyle(
-                                fontSize: 9,
+                                fontSize: 10,
+                                fontWeight:
+                                FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    bottomTitles:
+                    AxisTitles(
+
+                      sideTitles:
+                      SideTitles(
+
+                        showTitles: true,
+
+                        reservedSize: 30,
+
+                        interval:
+                        portfolioSpots.length > 10
+                            ? 2
+                            : 1,
+
+                        getTitlesWidget:
+                            (
+                            value,
+                            meta,
+                            ) {
+
+                          return Padding(
+
+                            padding:
+                            const EdgeInsets.only(
+                              top: 6,
+                            ),
+
+                            child: Text(
+
+                              "${value.toInt() + 1}",
+
+                              style:
+                              const TextStyle(
+                                fontSize: 10,
+                                fontWeight:
+                                FontWeight.w500,
                               ),
                             ),
                           );
@@ -554,9 +625,9 @@ class _DashboardScreenState
                       spots:
                       portfolioSpots,
 
-                      isCurved: true,
+                      isCurved: false,
 
-                      barWidth: 3,
+                      barWidth: 4,
 
                       dotData:
                       FlDotData(
@@ -565,12 +636,13 @@ class _DashboardScreenState
 
                       belowBarData:
                       BarAreaData(
+
                         show: true,
 
                         color:
                         const Color(
                             0xFF4FC3F7)
-                            .withOpacity(0.12),
+                            .withOpacity(0.15),
                       ),
                     ),
                   ],
@@ -579,66 +651,6 @@ class _DashboardScreenState
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget actionButton({
-    required String text,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-
-    return Expanded(
-
-      child: InkWell(
-
-        onTap: onTap,
-
-        child: Container(
-
-          padding:
-          const EdgeInsets.symmetric(
-            vertical: 14,
-          ),
-
-          decoration: BoxDecoration(
-
-            color:
-            const Color(0xFF4FC3F7),
-
-            borderRadius:
-            BorderRadius.circular(16),
-          ),
-
-          child: Row(
-
-            mainAxisAlignment:
-            MainAxisAlignment.center,
-
-            children: [
-
-              Icon(
-                icon,
-                color: Colors.white,
-                size: 18,
-              ),
-
-              const SizedBox(width: 8),
-
-              Text(
-
-                text,
-
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight:
-                  FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -668,6 +680,7 @@ class _DashboardScreenState
       ),
 
       child: Row(
+
         children: [
 
           CircleAvatar(
@@ -695,6 +708,7 @@ class _DashboardScreenState
               children: [
 
                 Text(
+
                   coin.name,
 
                   style:
@@ -712,13 +726,36 @@ class _DashboardScreenState
             ),
           ),
 
-          Text(
-            "\$${coin.price.toStringAsFixed(2)}",
+          Column(
 
-            style: const TextStyle(
-              fontWeight:
-              FontWeight.bold,
-            ),
+            crossAxisAlignment:
+            CrossAxisAlignment.end,
+
+            children: [
+
+              Text(
+
+                "\$${coin.price.toStringAsFixed(2)}",
+
+                style: const TextStyle(
+                  fontWeight:
+                  FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              Text(
+
+                "Current Price",
+
+                style: TextStyle(
+                  color:
+                  Colors.grey.shade600,
+                  fontSize: 11,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -731,16 +768,16 @@ class _DashboardScreenState
     return Scaffold(
 
       backgroundColor:
-      Colors.white,
+      Colors.grey.shade100,
 
       appBar: AppBar(
 
         backgroundColor:
         Colors.white,
 
-        centerTitle: true,
-
         elevation: 0,
+
+        centerTitle: true,
 
         title: const Text(
 
@@ -776,7 +813,7 @@ class _DashboardScreenState
             Container(
 
               padding:
-              const EdgeInsets.all(20),
+              const EdgeInsets.all(22),
 
               decoration: BoxDecoration(
 
@@ -795,35 +832,33 @@ class _DashboardScreenState
 
               child: Column(
 
-                crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
-
                 children: [
 
                   const Text(
 
-                    "Total Portfolio",
+                    "Portfolio Balance",
 
                     style: TextStyle(
                       color:
                       Colors.white70,
+                      fontSize: 16,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 8,
-                  ),
+                  const SizedBox(height: 10),
 
                   Text(
 
                     "\$${totalPortfolio.toStringAsFixed(2)}",
 
+                    textAlign:
+                    TextAlign.center,
+
                     style:
                     const TextStyle(
                       color:
                       Colors.white,
-                      fontSize: 30,
+                      fontSize: 32,
                       fontWeight:
                       FontWeight.bold,
                     ),
@@ -847,7 +882,6 @@ class _DashboardScreenState
 
                     Navigator.push(
                       context,
-
                       MaterialPageRoute(
                         builder: (_) =>
                         const SendScreen(),
@@ -856,7 +890,7 @@ class _DashboardScreenState
                   },
                 ),
 
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
 
                 actionButton(
 
@@ -869,10 +903,67 @@ class _DashboardScreenState
 
                     Navigator.push(
                       context,
-
                       MaterialPageRoute(
                         builder: (_) =>
                         const ReceiveScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+
+                actionButton(
+
+                  text: "Buy Coin",
+
+                  icon:
+                  Icons.currency_bitcoin,
+
+                  onTap: () {
+
+                    Navigator.push(
+
+                      context,
+
+                      MaterialPageRoute(
+
+                        builder: (_) =>
+                            BuyCoinScreen(
+                              coins: coins,
+                            ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(width: 10),
+
+                actionButton(
+
+                  text:
+                  "Portfolio Analysis",
+
+                  icon:
+                  Icons.analytics,
+
+                  onTap: () {
+
+                    Navigator.push(
+
+                      context,
+
+                      MaterialPageRoute(
+
+                        builder: (_) =>
+                            AIAnalysisScreen(
+                              coins: coins,
+                            ),
                       ),
                     );
                   },
@@ -888,7 +979,7 @@ class _DashboardScreenState
                 analyticsCard(
 
                   title:
-                  "Invested",
+                  "Investment",
 
                   value:
                   "\$${totalInvestment.toStringAsFixed(2)}",
